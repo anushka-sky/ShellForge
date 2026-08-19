@@ -4,12 +4,23 @@
 
 #include "../include/lexer.h"
 #include "../include/token.h"
+#include "../include/history.h"
+#include "../include/parser.h"
+#include "../include/expand.h"
 
 #define INPUT_SIZE 1024
 
 int main(void)
 {
     char input[INPUT_SIZE];
+
+    History history;
+
+    /* Initialize history */
+    history_init(&history);
+
+    /* Load previous commands */
+    history_load(&history);
 
     printf("ShellForge\n");
     printf("Type 'exit' to quit.\n\n");
@@ -19,23 +30,39 @@ int main(void)
         printf("shellforge$ ");
         fflush(stdout);
 
+        /* Read command */
         if (fgets(input, sizeof(input), stdin) == NULL)
         {
             printf("\n");
             break;
         }
 
+        /* Remove newline */
         input[strcspn(input, "\n")] = '\0';
 
+        /* Ignore empty input */
+        if (strlen(input) == 0)
+        {
+            continue;
+        }
+
+        /* Exit */
         if (strcmp(input, "exit") == 0)
         {
             break;
         }
 
-        if (strlen(input) == 0)
+        /* Show history */
+        if (strcmp(input, "history") == 0)
         {
+            history_print(&history);
             continue;
         }
+
+        /* Add command to history */
+        history_add(&history, input);
+
+        /* ---------------- TOKENIZATION ---------------- */
 
         TokenList list;
 
@@ -43,11 +70,14 @@ int main(void)
 
         if (lexer_tokenize(input, &list) != 0)
         {
+            printf("Lexer error\n");
             token_list_free(&list);
             continue;
         }
 
-        printf("\nTokens:\n");
+        /* Display tokens */
+        printf("\n");
+        printf("============== TOKENS ================\n");
 
         for (int i = 0; i < list.count; i++)
         {
@@ -55,23 +85,52 @@ int main(void)
 
             if (token->type == TOKEN_EOF)
             {
-                printf("[%d] EOF\n", i);
+                printf("%2d : END     END\n", i);
             }
             else
             {
-                printf("[%d] %-12s : %s\n",
+                printf("%2d : %-7s %s\n",
                        i,
                        token_type_name(token->type),
-                       token->value);
+                       token->value != NULL ? token->value : "");
             }
         }
 
-        printf("\n");
+        printf("=======================================\n");
 
+        /* ---------------- PARSER ---------------- */
+
+        Pipeline pipeline;
+
+        if (parse_tokens(&list, &pipeline) != 0)
+        {
+            printf("Parser error\n");
+
+            token_list_free(&list);
+            continue;
+        }
+
+        /* ---------------- EXPAND / PIPELINE ---------------- */
+
+        expand_pipeline(&pipeline);
+
+        /* Free pipeline */
+        pipeline_free(&pipeline);
+
+        /* Free tokens */
         token_list_free(&list);
+
+        printf("\n");
     }
 
+    /* Exit message */
     printf("Exiting ShellForge...\n");
+
+    /* Save history */
+    history_save(&history);
+
+    /* Free history */
+    history_free(&history);
 
     return 0;
 }

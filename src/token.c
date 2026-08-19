@@ -92,7 +92,7 @@ const char *token_type_name(TokenType type)
             return "BACKGROUND";
 
         case TOKEN_EOF:
-            return "EOF";
+            return "END";
 
         case TOKEN_ERROR:
             return "ERROR";
