@@ -7,6 +7,10 @@
 #include "../include/history.h"
 #include "../include/parser.h"
 #include "../include/expand.h"
+#include "../include/builtin.h"
+#include "../include/executor.h"
+#include <fcntl.h>
+#include <unistd.h>
 
 #define INPUT_SIZE 1024
 
@@ -113,6 +117,61 @@ int main(void)
         /* ---------------- EXPAND / PIPELINE ---------------- */
 
         expand_pipeline(&pipeline);
+/* ---------------- BUILTINS ---------------- */
+/* ---------------- BUILTINS / EXTERNAL COMMANDS ---------------- */
+
+int should_exit = 0;
+
+for (int i = 0; i < pipeline.count; i++)
+{
+    Command *cmd = &pipeline.commands[i];
+if (is_builtin(cmd))
+{
+    int saved_stdout = dup(STDOUT_FILENO);
+    int output_fd = -1;
+
+    if (cmd->output != NULL)
+    {
+        if (cmd->append)
+        {
+            output_fd = open(cmd->output,
+                             O_WRONLY | O_CREAT | O_APPEND,
+                             0644);
+        }
+        else
+        {
+            output_fd = open(cmd->output,
+                             O_WRONLY | O_CREAT | O_TRUNC,
+                             0644);
+        }
+
+        if (output_fd < 0)
+        {
+            perror("output");
+            close(saved_stdout);
+            continue;
+        }
+
+        dup2(output_fd, STDOUT_FILENO);
+        close(output_fd);
+    }
+
+    int result = execute_builtin(cmd);
+
+    fflush(stdout);
+    dup2(saved_stdout, STDOUT_FILENO);
+    close(saved_stdout);
+
+    if (strcmp(cmd->argv[0], "exit") == 0 && result == 1)
+    {
+        should_exit = 1;
+    }
+}
+    else
+    {
+        execute_external(cmd);
+    }
+}
 
         /* Free pipeline */
         pipeline_free(&pipeline);
@@ -121,6 +180,10 @@ int main(void)
         token_list_free(&list);
 
         printf("\n");
+        if (should_exit)
+{
+    break;
+}
     }
 
     /* Exit message */

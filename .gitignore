@@ -1,0 +1,14 @@
+# Compiled files
+*.o
+
+# Executable
+shellforge
+
+# Shell history
+.shellforge_history
+
+# Backup files
+*.save
+
+# Old source backups
+*_old.c
